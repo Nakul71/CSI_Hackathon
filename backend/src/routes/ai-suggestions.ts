@@ -1,24 +1,35 @@
 import { Router, Request, Response } from "express";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getStore } from "../data/store";
 import { generateId } from "../utils/helpers";
 import { ImpactLevel } from "../types";
 
 const router = Router();
 
-// Initialize the Google GenAI SDK later when env vars are guaranteed to be loaded
-
 /** GET /api/ai-suggestions — Generate and return AI suggestions based on recent activities */
 router.get("/", async (req: Request, res: Response) => {
   const { userId = "default" } = req.query as Record<string, string>;
   const store = getStore(userId);
+  
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not defined in environment variables");
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      }
+    });
+
     // 1. Get the last 20 activities for this user
     const recentActivities = store.activities.slice(0, 20);
 
     // 2. Prepare the prompt
-    const prompt = `
+    let prompt = `
 System Prompt: You are a sustainability AI. Analyze the following user digital activities JSON. 
 Return exactly 3 specific, actionable suggestions to reduce their carbon footprint.
 Strict return the response as a JSON array with the exact keys: title, description, category (must be 'email', 'storage', or 'ai'), savingsINR (number), and savingsCO2 (number).
@@ -28,16 +39,16 @@ User Digital Activities:
 ${JSON.stringify(recentActivities, null, 2)}
     `;
 
-    // 3. Call the Gemini API
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash", 
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+    // Fallback if no activities exist
+    if (recentActivities.length === 0) {
+      prompt += "\nNote: User has no recent activities yet. Provide 3 high-level 'getting started' suggestions for digital sustainability.";
+    }
 
-    const outputText = response.text || "[]";
+    // 3. Call the Gemini API
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const outputText = response.text();
+    
     let parsedData = [];
     try {
       parsedData = JSON.parse(outputText);
@@ -65,8 +76,8 @@ ${JSON.stringify(recentActivities, null, 2)}
       };
     });
 
-    // 5. Optionally add to our in-memory store so the /apply patch endpoint still works!
-    // We maintain a limited number of suggestions in store to prevent memory leaks over time.
+    // 5. Update the store
+    // We maintain a limited number of suggestions in store.
     store.suggestions.unshift(...newSuggestions);
     if (store.suggestions.length > 50) {
       store.suggestions.length = 50; 
@@ -74,15 +85,24 @@ ${JSON.stringify(recentActivities, null, 2)}
 
     // Filter by impact if provided in query string
     const { impact } = req.query as Record<string, string>;
-    let result = newSuggestions;
+    let results = newSuggestions;
     if (impact && impact !== "all") {
-      result = result.filter((s: { impact: string; }) => s.impact === impact);
+      results = results.filter((s: { impact: string; }) => s.impact === impact);
     }
 
-    res.json(result);
+    res.json(results);
   } catch (error) {
     console.error("AI Generation Error:", error);
-    res.status(500).json({ error: "Failed to generate AI suggestions", details: String(error) });
+    
+    // Fallback: return existing suggestions from store if AI fails
+    // This ensures the UI is never empty "suggestions nhi aa rhe"
+    const { impact } = req.query as Record<string, string>;
+    let results = [...store.suggestions].slice(0, 3);
+    if (impact && impact !== "all") {
+      results = results.filter((s) => s.impact === impact);
+    }
+    
+    res.json(results);
   }
 });
 
