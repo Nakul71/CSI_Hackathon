@@ -6,7 +6,6 @@ import {
   Leaf,
   Mail,
   Bot,
-  TrendingDown,
   Info,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,7 +39,7 @@ export function KPICards() {
       title: "Total Cost Saved",
       value: formatCurrency(kpi.totalCostSaved),
       icon: IndianRupee,
-      change: "+12.5%",
+      subtitle: "this week",
       tooltip:
         "Estimated cost savings from optimized email, reduced AI tokens, and storage cleanup",
       color: "text-blue-500",
@@ -50,7 +49,7 @@ export function KPICards() {
       title: "Total CO₂ Saved",
       value: formatCarbon(kpi.totalCO2Saved),
       icon: Leaf,
-      change: "+8.2%",
+      subtitle: "this week",
       tooltip:
         "CO₂ emissions prevented by digital activity optimizations. Based on average data center energy consumption.",
       color: "text-emerald-500",
@@ -60,7 +59,7 @@ export function KPICards() {
       title: "Emails Optimized",
       value: kpi.emailsOptimized.toString(),
       icon: Mail,
-      change: "+24",
+      subtitle: "tracked",
       tooltip:
         "Emails compressed, attachments optimized, or unnecessary sends prevented",
       color: "text-violet-500",
@@ -70,7 +69,7 @@ export function KPICards() {
       title: "AI Usage Reduced",
       value: `${kpi.aiUsageReduced.toFixed(0)}%`,
       icon: Bot,
-      change: "-3.1%",
+      subtitle: "optimized",
       tooltip:
         "Reduction in AI token usage through caching, model downsizing, and prompt optimization",
       color: "text-amber-500",
@@ -109,9 +108,8 @@ export function KPICards() {
                   <p className="text-sm text-muted-foreground">{card.title}</p>
                   <div className="mt-1 flex items-baseline gap-2">
                     <p className="text-2xl font-bold">{card.value}</p>
-                    <span className="flex items-center text-xs text-emerald-500">
-                      <TrendingDown className="mr-0.5 h-3 w-3" />
-                      {card.change}
+                    <span className="text-xs text-muted-foreground">
+                      {card.subtitle}
                     </span>
                   </div>
                 </div>

@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { getStore } from "../data/store";
 import { generateId } from "../utils/helpers";
 import { ActivityType } from "../types";
+import { io } from "../index";
 
 const router = Router();
 
@@ -91,12 +92,73 @@ router.post("/", (req: Request, res: Response) => {
   // Add to beginning (newest first)
   store.activities.unshift(activity);
 
-  // Update KPIs
+  // Keep activities bounded
+  if (store.activities.length > 500) {
+    store.activities.length = 500;
+  }
+
+  // ── Update KPIs ──────────────────────────────────
   store.kpi.totalCostSaved += activity.costINR * 0.3;
   store.kpi.totalCO2Saved += activity.carbonKg * 0.3;
   if (activity.type === "email") store.kpi.emailsOptimized += 1;
   if (activity.type === "ai") store.kpi.aiUsageReduced += 0.5;
   if (activity.type === "search") store.kpi.searchesOptimized += 1;
+
+  // ── Update Time Series (map to current day of week) ──
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const today = days[new Date().getDay()];
+  const dayEntry = store.timeSeries.find((t) => t.date === today);
+  if (dayEntry) {
+    dayEntry.cost += activity.costINR;
+    dayEntry.carbon += activity.carbonKg;
+  }
+
+  // ── Update Distribution (pie chart data) ──────────
+  const typeToName: Record<string, string> = {
+    email: "Email",
+    ai: "AI Usage",
+    storage: "Storage",
+    search: "Search",
+  };
+  const distEntry = store.distribution.find(
+    (d) => d.name === typeToName[activity.type]
+  );
+  if (distEntry) {
+    distEntry.value += activity.carbonKg;
+  }
+
+  // ── Update Sustainability Score ────────────────────
+  // Score decreases as more high-impact activities are logged
+  // Base score starts at 100, decreases by activity volume per category
+  const emailCount = store.activities.filter((a) => a.type === "email").length;
+  const aiCount = store.activities.filter((a) => a.type === "ai").length;
+  const storageCount = store.activities.filter((a) => a.type === "storage").length;
+  const searchCount = store.activities.filter((a) => a.type === "search").length;
+
+  // Each category contributes to the breakdown (0-100 efficiency, lower = more usage)
+  store.breakdown.email = Math.max(0, Math.round(100 - emailCount * 3));
+  store.breakdown.ai = Math.max(0, Math.round(100 - aiCount * 5));
+  store.breakdown.storage = Math.max(0, Math.round(100 - storageCount * 4));
+  store.breakdown.search = Math.max(0, Math.round(100 - searchCount * 2));
+
+  // Overall score is weighted average of all breakdowns
+  store.sustainabilityScore = Math.max(
+    0,
+    Math.round(
+      (store.breakdown.email * 0.25 +
+        store.breakdown.ai * 0.35 +
+        store.breakdown.storage * 0.25 +
+        store.breakdown.search * 0.15)
+    )
+  );
+
+  // ── Emit WebSocket events for real-time Live Tracker ──
+  try {
+    io.emit("new-activity", activity);
+    io.emit("kpi-update", store.kpi);
+  } catch (e) {
+    // Socket may not be ready yet on startup
+  }
 
   res.status(201).json(activity);
 });

@@ -269,7 +269,12 @@ if (window.location.hostname.includes("google.com")) {
         (target.innerText && target.innerText.includes("Google Search")) ||
         (target.querySelector && target.querySelector('svg') && target.getAttribute("aria-label")?.includes("Search"))
       ) {
-        trackSearch();
+        // Grab the query from the search input on the page
+        const searchInput = document.querySelector('textarea[name="q"], input[name="q"], [role="combobox"]');
+        const query = searchInput ? (searchInput.value || searchInput.textContent || "") : "";
+        if (query.trim()) {
+          trackSearch(query.trim());
+        }
         break;
       }
       target = target.parentNode;

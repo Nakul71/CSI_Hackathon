@@ -84,16 +84,32 @@ const defaultKPI: KPIData = {
   searchesOptimized: 0,
 };
 
-// Helper to get userId from URL
-const getUserIdFromURL = () => {
+// Helper to get or create a unique userId per browser session
+const getOrCreateUserId = (): string | null => {
   if (typeof window === "undefined") return null;
+
+  // Priority 1: URL param (from Chrome extension popup link)
   const params = new URLSearchParams(window.location.search);
-  return params.get("user") || params.get("userId");
+  const urlUserId = params.get("user") || params.get("userId");
+  if (urlUserId) {
+    // Save the extension's userId so it persists for this browser too
+    localStorage.setItem("carbon_user_id", urlUserId);
+    return urlUserId;
+  }
+
+  // Priority 2: Previously saved userId in this browser
+  const savedId = localStorage.getItem("carbon_user_id");
+  if (savedId) return savedId;
+
+  // Priority 3: Generate a new unique userId for this browser
+  const newId = "user-" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+  localStorage.setItem("carbon_user_id", newId);
+  return newId;
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
   // User Identity
-  userId: getUserIdFromURL(),
+  userId: getOrCreateUserId(),
   setUserId: (userId) => set({ userId }),
 
   // Loading
