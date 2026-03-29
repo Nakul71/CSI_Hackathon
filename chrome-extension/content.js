@@ -127,23 +127,33 @@ if (window.location.hostname.includes("mail.google.com")) {
   setInterval(() => {
     try {
       let totalMB = 0.0;
+      
       // Approach 1: Gmail's built-in Screen Reader accessibility labels (Most Robust)
+      // Gmail usually labels attachments like: "Attachment: orange-train.mp4 (11,410K)"
+      // We MUST only look inside the parentheses to avoid matching numbers in filenames (e.g., 3840x2160)
       const attachmentChips = document.querySelectorAll('[aria-label*="Attachment"]'); 
       attachmentChips.forEach(chip => {
         const label = chip.getAttribute("aria-label") || "";
-        const match = label.match(/([\d.]+)\s*(MB|KB|GB|M|K)/i);
+        
+        // Strict Regex: Look for numbers in parentheses followed by unit
+        // This avoids matching "2160" from "3840x2160.mp4"
+        const match = label.match(/\(([\d,.]+)\s*(MB|KB|GB|M|K)\)/i);
+        
         if (match) {
-          const sizeInfo = parseFloat(match[1]);
+          let sizeStr = match[1].replace(/,/g, ''); // Handle commas like 11,410
+          const sizeInfo = parseFloat(sizeStr);
           const unit = match[2].toUpperCase();
+          
           if (unit === "MB" || unit === "M") totalMB += sizeInfo;
           else if (unit === "KB" || unit === "K") totalMB += (sizeInfo / 1024);
           else if (unit === "GB" || unit === "G") totalMB += (sizeInfo * 1024);
+          
+          console.log(`[Carbon-oh-no] Detected Attachment: ${sizeInfo} ${unit} (Label: ${label})`);
         }
       });
 
       // Approach 2: Fallback to reading small spans containing sizes (if aria tags change)
       if (totalMB === 0) {
-        // We ONLY look inside Gmail compose windows (.M9 is the container class for Gmail drafts)
         const composeWindows = document.querySelectorAll('.M9, .AD'); 
         const seen = new Set();
         
@@ -151,12 +161,15 @@ if (window.location.hostname.includes("mail.google.com")) {
           const spans = win.querySelectorAll('span');
           spans.forEach(span => {
             const text = (span.innerText || "").trim();
-            if (text.length > 0 && text.length < 20) {
-               const match = text.match(/^\(?([\d.]+)\s*(MB|KB|GB|M|K)\)?$/i);
+            // Spans in Gmail for size are tiny and usually like "(1.2 MB)"
+            if (text.length > 0 && text.length < 20 && text.includes('(')) {
+               const match = text.match(/^\(?([\d,.]+)\s*(MB|KB|GB|M|K)\)?$/i);
                if (match && !seen.has(text)) {
                  seen.add(text);
-                 const sizeInfo = parseFloat(match[1]);
+                 let sizeStr = match[1].replace(/,/g, '');
+                 const sizeInfo = parseFloat(sizeStr);
                  const unit = match[2].toUpperCase();
+                 
                  if (unit === "MB" || unit === "M") totalMB += sizeInfo;
                  else if (unit === "KB" || unit === "K") totalMB += (sizeInfo / 1024);
                  else if (unit === "GB" || unit === "G") totalMB += (sizeInfo * 1024);
@@ -166,8 +179,15 @@ if (window.location.hostname.includes("mail.google.com")) {
         });
       }
 
+      // Final Safety Cap: Gmail usually limits attachments to 25MB total. 
+      // If we see > 50MB, it's likely a scraping error (except for Drive links which are handled elsewhere).
+      if (totalMB > 50) {
+        console.warn(`[Carbon-oh-no] Unusually high Gmail size detected (${totalMB}MB). Capping for safety.`);
+        totalMB = 25.0; 
+      }
+
       lastTotalMB = totalMB;
-      if (totalMB > 0.5) { // Threshold is 500KB
+      if (totalMB > 0.5) { // Threshold for warning: 0.5 MB
         injectBanner("carbon-gmail-warning", `Heavy attachments! (${totalMB.toFixed(2)} MB). Use a Google Drive link to save CO₂!`);
       } else {
         removeBanner("carbon-gmail-warning");
@@ -196,14 +216,25 @@ if (window.location.hostname.includes("mail.google.com")) {
     let sizeStr = "Text Email";
     let estCost = 0.05; 
     let estCarbon = 0.004;
+    
+    // Use the detected total (limited to safety cap)
     if (totalMB > 0) {
       sizeStr = `${totalMB.toFixed(1)} MB`;
       estCost = parseFloat((0.05 + (totalMB * 0.12)).toFixed(3)); 
       estCarbon = parseFloat((0.004 + (totalMB * 0.015)).toFixed(3)); 
     }
-    logActivityToDashboard({ type: "email", description: totalMB > 0 ? "Email with attachments sent" : "Standard email", size: sizeStr, costINR: estCost, carbonKg: estCarbon });
+    
+    console.log(`[Carbon-oh-no] Logging Email Activity: ${sizeStr}`);
+    logActivityToDashboard({ 
+      type: "email", 
+      description: totalMB > 0 ? "Email with attachments sent" : "Standard email", 
+      size: sizeStr, 
+      costINR: estCost, 
+      carbonKg: estCarbon 
+    });
   }
 }
+
 
 // ── 3. Google Search Tracker (www.google.com) ───
 if (window.location.hostname.includes("google.com")) {
