@@ -9,6 +9,7 @@ import {
   CompressionIntensity,
   CompressionResult,
 } from "./types";
+import { shortenPromptClient, estimateTokens } from "./prompt-compressor";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -160,28 +161,50 @@ export function calculateImpact(
 
 // ── Prompt Optimization ──────────────────────────────
 
-export function shortenPromptAPI(
+export async function shortenPromptAPI(
   prompt: string,
   intensity: CompressionIntensity = "balanced",
   userId?: string,
   logActivity: boolean = true
 ): Promise<CompressionResult> {
-  return fetchJSON("/api/prompt/shorten", {
-    method: "POST",
-    body: JSON.stringify({ prompt, intensity, userId, logActivity }),
-  });
+  try {
+    return await fetchJSON("/api/prompt/shorten", {
+      method: "POST",
+      body: JSON.stringify({ prompt, intensity, userId, logActivity }),
+    });
+  } catch (err: unknown) {
+    // If backend route is not found (e.g. Render pending deploy) or network error,
+    // gracefully perform client-side ML/NLP compression so Vercel never breaks!
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      "Backend /api/prompt/shorten unavailable, using client-side ML engine:",
+      msg
+    );
+    return shortenPromptClient(prompt, intensity);
+  }
 }
 
-export function analyzePromptAPI(prompt: string): Promise<{
+export async function analyzePromptAPI(prompt: string): Promise<{
   promptLength: number;
   estimatedTokens: number;
   estimatedCostINR: number;
   estimatedCarbonKg: number;
   needsOptimization: boolean;
 }> {
-  return fetchJSON("/api/prompt/analyze", {
-    method: "POST",
-    body: JSON.stringify({ prompt }),
-  });
+  try {
+    return await fetchJSON("/api/prompt/analyze", {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    });
+  } catch {
+    const tokens = estimateTokens(prompt);
+    return {
+      promptLength: prompt.length,
+      estimatedTokens: tokens,
+      estimatedCostINR: +(tokens * 0.0003).toFixed(4),
+      estimatedCarbonKg: +(tokens * 0.00002).toFixed(6),
+      needsOptimization: tokens > 35,
+    };
+  }
 }
 
