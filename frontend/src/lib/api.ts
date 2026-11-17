@@ -6,9 +6,15 @@ import {
   UsageDistribution,
   Settings,
   SustainabilityBreakdown,
+  CompressionIntensity,
+  CompressionResult,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://carbon-oh-no.onrender.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : "https://carbon-oh-no.onrender.com");
 
 // ── Generic fetch helper ─────────────────────────────
 
@@ -151,3 +157,31 @@ export function calculateImpact(
     body: JSON.stringify({ type, size }),
   });
 }
+
+// ── Prompt Optimization ──────────────────────────────
+
+export function shortenPromptAPI(
+  prompt: string,
+  intensity: CompressionIntensity = "balanced",
+  userId?: string,
+  logActivity: boolean = true
+): Promise<CompressionResult> {
+  return fetchJSON("/api/prompt/shorten", {
+    method: "POST",
+    body: JSON.stringify({ prompt, intensity, userId, logActivity }),
+  });
+}
+
+export function analyzePromptAPI(prompt: string): Promise<{
+  promptLength: number;
+  estimatedTokens: number;
+  estimatedCostINR: number;
+  estimatedCarbonKg: number;
+  needsOptimization: boolean;
+}> {
+  return fetchJSON("/api/prompt/analyze", {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+

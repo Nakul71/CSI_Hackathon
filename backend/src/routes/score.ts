@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { getStore } from "../data/store";
 import { ScoreResponse } from "../types";
 
-const router = Router();
+const router: Router = Router();
 
 /** GET /api/score — Sustainability score + breakdown */
 router.get("/", (req: Request, res: Response) => {

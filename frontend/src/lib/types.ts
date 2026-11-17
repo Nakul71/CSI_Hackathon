@@ -56,3 +56,18 @@ export interface KPIData {
   aiUsageReduced: number;
   searchesOptimized: number;
 }
+
+export type CompressionIntensity = "conservative" | "balanced" | "aggressive";
+
+export interface CompressionResult {
+  originalPrompt: string;
+  shortenedPrompt: string;
+  originalTokens: number;
+  shortenedTokens: number;
+  tokensSaved: number;
+  reductionPercentage: number;
+  costSavedINR: number;
+  carbonSavedKg: number;
+  method: "gemini-neural" | "local-nlp-pruning";
+}
+

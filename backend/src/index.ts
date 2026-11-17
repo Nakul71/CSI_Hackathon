@@ -11,8 +11,7 @@ import aiSuggestionsRoutes from "./routes/ai-suggestions";
 import scoreRoutes from "./routes/score";
 import settingsRoutes from "./routes/settings";
 import calculateRoutes from "./routes/calculate";
-import { generateRandomActivity } from "./utils/helpers";
-import { activities, kpi } from "./data/store";
+import promptRoutes from "./routes/prompt";
 
 dotenv.config();
 
@@ -58,6 +57,8 @@ const io = new SocketIOServer(server, {
   },
 });
 
+app.set("io", io);
+
 io.on("connection", (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);
 
@@ -65,26 +66,6 @@ io.on("connection", (socket) => {
     console.log(`[WS] Client disconnected: ${socket.id}`);
   });
 });
-
-// Push a new random activity to all clients every 8 seconds
-// setInterval(() => {
-//   const activity = generateRandomActivity();
-//   activities.unshift(activity);
-// 
-//   // Keep activities list bounded
-//   if (activities.length > 200) {
-//     activities.length = 200;
-//   }
-// 
-//   // Update KPIs
-//   kpi.totalCostSaved += activity.costINR * 0.3;
-//   kpi.totalCO2Saved += activity.carbonKg * 0.3;
-//   if (activity.type === "email") kpi.emailsOptimized += 1;
-//   if (activity.type === "ai") kpi.aiUsageReduced += 0.5;
-// 
-//   io.emit("new-activity", activity);
-//   io.emit("kpi-update", kpi);
-// }, 8000);
 
 // ── REST Routes ──────────────────────────────────────
 app.use("/api/dashboard", dashboardRoutes);
@@ -94,6 +75,7 @@ app.use("/api/ai-suggestions", aiSuggestionsRoutes);
 app.use("/api/score", scoreRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/calculate", calculateRoutes);
+app.use("/api/prompt", promptRoutes);
 
 // Health check
 app.get("/api/health", (_req, res) => {

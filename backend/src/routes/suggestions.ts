@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getStore } from "../data/store";
+import { getStore, recalculateUserMetrics } from "../data/store";
 
 const router = Router();
 
@@ -37,6 +37,18 @@ router.patch("/:id/apply", (req: Request, res: Response) => {
   // Update KPIs with savings
   store.kpi.totalCostSaved += suggestion.savingsINR;
   store.kpi.totalCO2Saved += suggestion.savingsCO2;
+  if (suggestion.category === "email") store.kpi.emailsOptimized += 1;
+  if (suggestion.category === "ai") store.kpi.aiUsageReduced += 20;
+  if (suggestion.category === "search") store.kpi.searchesOptimized += 1;
+
+  // Recalculate metrics
+  recalculateUserMetrics(store);
+
+  // Emit live WebSocket update
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("kpi-update", store.kpi);
+  }
 
   res.json({
     suggestion,

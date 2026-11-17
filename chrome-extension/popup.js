@@ -7,25 +7,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             chrome.storage.local.set({ carbon_user_id: userId });
         }
 
-        // 2. Update Dashboard Link with userId
+        const dashboardBase = (typeof CONFIG !== "undefined" && CONFIG.DASHBOARD_URL) 
+            ? CONFIG.DASHBOARD_URL 
+            : "http://localhost:3000";
+
+        const apiBase = (typeof CONFIG !== "undefined" && CONFIG.API_URL) 
+            ? CONFIG.API_URL 
+            : "http://localhost:5000";
+
+        // 2. Update Dashboard & Prompt Shortener Links with userId
         const dashboardLink = document.querySelector('.btn-primary');
         if (dashboardLink) {
-            const baseUrl = "https://carbon-oh-no.vercel.app/";
-            dashboardLink.href = `${baseUrl}?user=${userId}`;
+            dashboardLink.href = `${dashboardBase}?user=${userId}`;
+        }
+
+        const optimizerLink = document.getElementById('optimizer-link');
+        if (optimizerLink) {
+            optimizerLink.href = `${dashboardBase}/prompt-optimizer?user=${userId}`;
         }
 
         // 3. Update Popup KPI data
         try {
-            const api_url = "https://carbon-oh-no.onrender.com";
-            const response = await fetch(`${api_url}/api/dashboard/kpi?userId=${userId}`);
+            const response = await fetch(`${apiBase}/api/dashboard/kpi?userId=${userId}`);
             if (!response.ok) throw new Error("Network response failed");
             
             const kpi = await response.json();
             const co2El = document.getElementById('co2-val');
             const costEl = document.getElementById('cost-val');
             
-            if (co2El) co2El.innerText = `${kpi.totalCO2Saved.toFixed(2)} kg`;
-            if (costEl) costEl.innerText = `₹ ${kpi.totalCostSaved.toFixed(2)}`;
+            if (co2El) co2El.innerText = `${(kpi.totalCO2Saved || 0).toFixed(2)} kg`;
+            if (costEl) costEl.innerText = `₹ ${(kpi.totalCostSaved || 0).toFixed(2)}`;
             
         } catch (error) {
             console.error("Failed to fetch KPIs:", error);

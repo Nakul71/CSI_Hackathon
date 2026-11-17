@@ -46,6 +46,8 @@ npm install
 # Create a .env file (see Configuration section below)
 npm run dev
 ```
+> [!NOTE]
+> Backend runs on `http://localhost:5001` by default (port 5000 is reserved on macOS for AirPlay Receiver).
 
 ### 3. Frontend Setup
 ```bash
@@ -61,6 +63,7 @@ npm run dev
 3.  Click **Load unpacked**.
 4.  Select the `chrome-extension` folder from this repository.
 5.  *Refresh your target pages (ChatGPT or Gmail) to begin tracking.*
+6.  *On ChatGPT, notice high token alerts with a one-click **"⚡ Shorten (ML)"** button to compress prompts instantly!*
 
 ---
 
@@ -70,14 +73,33 @@ The system requires certain keys to function. Create `.env` files in the respect
 
 ### Backend (`/backend/.env`)
 ```env
-PORT=5000
+PORT=5001
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:3000
 GEMINI_API_KEY=your_gemini_key_here
 ```
 
 ### Frontend (`/frontend/.env.local`)
 ```env
-NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
+NEXT_PUBLIC_API_URL=http://localhost:5001
+NEXT_PUBLIC_SOCKET_URL=http://localhost:5001
 ```
+
+---
+
+## 🧠 ML Prompt Shortening & Token Compressor
+
+Carbon-oh-no includes an intelligent, dual-engine ML prompt compressor designed to minimize LLM token bloat, GPU energy expenditure, and digital carbon footprints:
+
+1. **Dual-Tier ML Engine**:
+   - **Tier 1 (Instant Local ML/NLP Pruning)**: Prunes conversational filler, pleonasms, passive pleasantries, and redundant syntax with zero latency, offline reliability, and 3 configurable intensity modes (`conservative`, `balanced`, `aggressive`).
+   - **Tier 2 (Neural Generative Compression with Gemini)**: Uses Gemini 1.5 Flash to synthesize dense, instruction-dense prompts while strictly preserving 100% of variables, code, parameters, and format constraints.
+2. **Interactive UI (`/prompt-optimizer`)**:
+   - Side-by-side prompt diff, sample queries, and live counters for Tokens Saved, INR Saved, and Grams of CO₂ Avoided.
+3. **In-Browser Extension Integration**:
+   - On `chatgpt.com`, prompts over the threshold automatically trigger an active telemetry banner with an instant **"⚡ Shorten (ML)"** button and one-click **"Undo"**.
+4. **API Endpoint**:
+   - `POST /api/prompt/shorten` — returns compressed text, token reduction %, CO₂ kg, and INR savings while updating dashboard KPIs in real time.
 
 ---
 

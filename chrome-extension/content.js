@@ -7,17 +7,17 @@ function logActivityToDashboard(payload) {
 }
 
 // Fully robust, unblockable UI injector (Fixed position on screen)
-function injectBanner(id, message) {
+function injectBanner(id, message, actionHtml) {
   try {
-    if (document.getElementById(id)) return;
-    
-    const banner = document.createElement("div");
-    banner.id = id;
-    // Guaranteed to be Top-Center on ANY website
-    banner.setAttribute("style", "position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background-color: #064e3b; color: #a7f3d0; padding: 12px 20px; border-radius: 8px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; border: 2px solid #059669; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); z-index: 2147483647; animation: slideIn 0.3s ease-out; pointer-events: none;");
-    banner.innerHTML = `<span style="font-size: 18px">🌱</span><span>${message}</span>`;
-    
-    document.body.appendChild(banner);
+    let banner = document.getElementById(id);
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = id;
+      // Guaranteed to be Top-Center on ANY website
+      banner.setAttribute("style", "position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background-color: #064e3b; color: #a7f3d0; padding: 10px 18px; border-radius: 8px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px; border: 2px solid #059669; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); z-index: 2147483647; animation: slideIn 0.3s ease-out; pointer-events: auto;");
+      document.body.appendChild(banner);
+    }
+    banner.innerHTML = `<span style="font-size: 18px">🌱</span><span>${message}</span>${actionHtml || ""}`;
   } catch(e) {}
 }
 
@@ -31,14 +31,30 @@ function removeBanner(id) {
 // ── 1. ChatGPT Tracker (chatgpt.com) ─────────────
 if (window.location.hostname.includes("chatgpt.com")) {
   let lastCharCount = 0;
+  let originalPromptCache = "";
 
-  const getChatGPTCount = () => {
-    const textarea = document.getElementById("prompt-textarea") || 
-                     document.querySelector('div[contenteditable="true"]') || 
-                     document.querySelector('div[contenteditable="plaintext-only"]');
-    if (!textarea) return 0;
-    const textContent = textarea.value || textarea.innerText || textarea.textContent || "";
-    return textContent.trim().length;
+  const getChatGPTElement = () => {
+    return document.getElementById("prompt-textarea") || 
+           document.querySelector('div[contenteditable="true"]') || 
+           document.querySelector('div[contenteditable="plaintext-only"]');
+  };
+
+  const getChatGPTText = () => {
+    const el = getChatGPTElement();
+    if (!el) return "";
+    return (el.value || el.innerText || el.textContent || "").trim();
+  };
+
+  const setChatGPTText = (text) => {
+    const el = getChatGPTElement();
+    if (!el) return;
+    if ("value" in el) {
+      el.value = text;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    } else {
+      el.innerText = text;
+      el.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    }
   };
 
   // Helper to get the last user message from the chat history
@@ -53,19 +69,62 @@ if (window.location.hostname.includes("chatgpt.com")) {
     return 0;
   };
 
+  let isShortening = false;
+
   setInterval(() => {
     try {
-      const charCount = getChatGPTCount();
+      if (isShortening) return;
+      const text = getChatGPTText();
+      const charCount = text.length;
       if (charCount > 0) lastCharCount = charCount;
       
-      // Threshold for testing: 20 characters
-      if (charCount > 20) {
-        injectBanner("carbon-chatgpt-warning", `High Token Usage! (> ${charCount} chars). Estimated: ~0.005 kg CO₂. Consider summarizing!`);
+      // Threshold: 30 characters
+      if (charCount > 30) {
+        const estTokens = Math.ceil(charCount / 4);
+        const estCarbon = (estTokens * 0.00002).toFixed(5);
+        
+        const actionBtn = `<button id="carbon-shorten-btn" style="background:#10b981; color:#064e3b; border:none; border-radius:4px; padding:4px 10px; font-weight:700; font-size:12px; cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">⚡ Shorten (ML)</button>`;
+        
+        injectBanner("carbon-chatgpt-warning", `High Token Usage! (~${estTokens} tokens, ${estCarbon} kg CO₂).`, actionBtn);
+
+        const btn = document.getElementById("carbon-shorten-btn");
+        if (btn && !btn.dataset.bound) {
+          btn.dataset.bound = "true";
+          btn.addEventListener("click", () => {
+            const rawText = getChatGPTText();
+            if (!rawText) return;
+            originalPromptCache = rawText;
+            isShortening = true;
+            btn.innerText = "Shortening...";
+            btn.disabled = true;
+
+            chrome.runtime.sendMessage({ type: "SHORTEN_PROMPT", prompt: rawText }, (res) => {
+              isShortening = false;
+              if (res && res.status === "success" && res.data) {
+                setChatGPTText(res.data.shortenedPrompt);
+                const undoBtn = `<button id="carbon-undo-btn" style="background:#374151; color:#f3f4f6; border:none; border-radius:4px; padding:3px 8px; font-weight:600; font-size:11px; cursor:pointer; margin-left:6px;">Undo</button>`;
+                injectBanner("carbon-chatgpt-warning", `Shortened! Saved ${res.data.tokensSaved} tokens (~${(res.data.carbonSavedKg * 1000).toFixed(2)}g CO₂).`, undoBtn);
+                
+                const undo = document.getElementById("carbon-undo-btn");
+                if (undo) {
+                  undo.addEventListener("click", () => {
+                    setChatGPTText(originalPromptCache);
+                    removeBanner("carbon-chatgpt-warning");
+                  });
+                }
+                setTimeout(() => removeBanner("carbon-chatgpt-warning"), 7000);
+              } else {
+                btn.innerText = "Error";
+                setTimeout(() => { btn.innerText = "⚡ Shorten (ML)"; btn.disabled = false; }, 2000);
+              }
+            });
+          });
+        }
       } else {
         removeBanner("carbon-chatgpt-warning");
       }
     } catch (e) {}
-  }, 1000);
+  }, 1200);
 
   const handleGPTSend = () => {
     // Priority 1: Current textarea count
@@ -97,10 +156,12 @@ if (window.location.hostname.includes("chatgpt.com")) {
     try {
       let target = e.target;
       while (target && target !== document) {
+        const testId = target.getAttribute ? target.getAttribute("data-testid") : "";
+        const ariaLabel = target.getAttribute ? target.getAttribute("aria-label") : "";
         if (
-          (target.getAttribute && target.getAttribute("data-testid") && target.getAttribute("data-testid").includes("send-button")) ||
-          (target.nodeName === "BUTTON" && target.querySelector('svg') && target.parentElement?.classList.contains('flex')) ||
-          (target.ariaLabel === "Send prompt")
+          (testId && testId.toLowerCase().includes("send")) ||
+          (ariaLabel && ariaLabel.toLowerCase().includes("send")) ||
+          (target.nodeName === "BUTTON" && target.querySelector('svg') && target.parentElement?.classList.contains('flex'))
         ) {
           handleGPTSend();
           break;
@@ -112,8 +173,8 @@ if (window.location.hostname.includes("chatgpt.com")) {
 
   function scrapeAndPostGPT(charCount) {
     if (!charCount) return;
-    const estimatedTokens = Math.ceil(charCount / 4) + 50; 
-    const cost = parseFloat((estimatedTokens * 0.0015).toFixed(4));
+    const estimatedTokens = Math.ceil(charCount / 4) + 20; 
+    const cost = parseFloat((estimatedTokens * 0.0003).toFixed(4));
     const carbon = parseFloat((estimatedTokens * 0.00002).toFixed(5));
     console.log("Carbon-oh-no: Logging GPT Activity", { charCount, estimatedTokens });
     logActivityToDashboard({ type: "ai", description: `ChatGPT prompt (${charCount} chars)`, size: `${estimatedTokens} tokens`, costINR: cost, carbonKg: carbon });
@@ -214,20 +275,20 @@ if (window.location.hostname.includes("mail.google.com")) {
 
   function scrapeAndPostEmail(totalMB) {
     let sizeStr = "Text Email";
-    let estCost = 0.05; 
-    let estCarbon = 0.004;
+    let estCost = 0.005; 
+    let estCarbon = 0.00004;
     
     // Use the detected total (limited to safety cap)
     if (totalMB > 0) {
       sizeStr = `${totalMB.toFixed(1)} MB`;
-      estCost = parseFloat((0.05 + (totalMB * 0.12)).toFixed(3)); 
-      estCarbon = parseFloat((0.004 + (totalMB * 0.015)).toFixed(3)); 
+      estCost = parseFloat(Math.max(0.005, totalMB * 0.005).toFixed(4)); 
+      estCarbon = parseFloat(Math.max(0.00004, totalMB * 0.0000042).toFixed(5)); 
     }
     
     console.log(`[Carbon-oh-no] Logging Email Activity: ${sizeStr}`);
     logActivityToDashboard({ 
       type: "email", 
-      description: totalMB > 0 ? "Email with attachments sent" : "Standard email", 
+      description: totalMB > 0 ? `Email with attachments (${sizeStr})` : "Standard text email", 
       size: sizeStr, 
       costINR: estCost, 
       carbonKg: estCarbon 
@@ -300,7 +361,9 @@ if (window.location.hostname.includes("google.com")) {
         (target.innerText && target.innerText.includes("Google Search")) ||
         (target.querySelector && target.querySelector('svg') && target.getAttribute("aria-label")?.includes("Search"))
       ) {
-        trackSearch();
+        const input = document.querySelector('textarea[name="q"], input[name="q"], [role="combobox"]');
+        const queryVal = input ? input.value : "";
+        if (queryVal) trackSearch(queryVal);
         break;
       }
       target = target.parentNode;

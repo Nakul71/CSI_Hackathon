@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Mail, Bot, HardDrive } from "lucide-react";
+import { Mail, Bot, HardDrive, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/store/use-app-store";
 
@@ -27,6 +27,13 @@ const categories = [
     color: "#10b981",
     description: "Deduplication, lazy sync, and cleanup of unused files",
   },
+  {
+    key: "search" as const,
+    label: "Search Efficiency",
+    icon: Search,
+    color: "#f59e0b",
+    description: "Targeted queries, query refinement, and cache utilization",
+  },
 ];
 
 export function ScoreBreakdown() {
@@ -35,7 +42,7 @@ export function ScoreBreakdown() {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Score Breakdown</h3>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {categories.map((cat, i) => {
           const score = breakdown[cat.key];
           const barColor =

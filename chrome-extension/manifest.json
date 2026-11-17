@@ -5,7 +5,8 @@
   "description": "Automatically tracks digital activities (AI, Emails) to monitor your real-time carbon footprint.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
-    "http://localhost:5000/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
     "https://carbon-oh-no.onrender.com/*",
     "https://chatgpt.com/*",
     "https://mail.google.com/*",

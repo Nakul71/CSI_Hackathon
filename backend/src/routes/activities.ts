@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getStore } from "../data/store";
+import { getStore, recalculateUserMetrics } from "../data/store";
 import { generateId } from "../utils/helpers";
 import { ActivityType } from "../types";
 
@@ -90,6 +90,9 @@ router.post("/", (req: Request, res: Response) => {
 
   // Add to beginning (newest first)
   store.activities.unshift(activity);
+  if (store.activities.length > 200) {
+    store.activities.length = 200;
+  }
 
   // Update KPIs
   store.kpi.totalCostSaved += activity.costINR * 0.3;
@@ -97,6 +100,16 @@ router.post("/", (req: Request, res: Response) => {
   if (activity.type === "email") store.kpi.emailsOptimized += 1;
   if (activity.type === "ai") store.kpi.aiUsageReduced += 0.5;
   if (activity.type === "search") store.kpi.searchesOptimized += 1;
+
+  // Recalculate dynamic distributions & charts
+  recalculateUserMetrics(store);
+
+  // Broadcast in real-time via Socket.IO
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("new-activity", activity);
+    io.emit("kpi-update", store.kpi);
+  }
 
   res.status(201).json(activity);
 });

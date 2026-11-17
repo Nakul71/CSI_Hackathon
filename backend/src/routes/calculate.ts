@@ -6,6 +6,8 @@ import {
   estimateAICost,
   estimateStorageCarbon,
   estimateStorageCost,
+  estimateSearchCarbon,
+  estimateSearchCost,
   parseSize,
 } from "../utils/carbon";
 import { ActivityType } from "../types";
@@ -39,10 +41,14 @@ router.post("/", (req: Request, res: Response) => {
       costINR = estimateStorageCost(parsed.value);
       carbonKg = estimateStorageCarbon(parsed.value);
       break;
+    case "search":
+      costINR = estimateSearchCost(parsed.value || 1);
+      carbonKg = estimateSearchCarbon(parsed.value || 1);
+      break;
     default:
       res
         .status(400)
-        .json({ error: "type must be one of: email, ai, storage" });
+        .json({ error: "type must be one of: email, ai, storage, search" });
       return;
   }
 

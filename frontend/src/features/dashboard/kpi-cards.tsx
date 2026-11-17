@@ -68,11 +68,14 @@ export function KPICards() {
     },
     {
       title: "AI Usage Reduced",
-      value: `${kpi.aiUsageReduced.toFixed(0)}%`,
+      value:
+        kpi.aiUsageReduced >= 10
+          ? `${kpi.aiUsageReduced.toFixed(0)} tokens`
+          : `${kpi.aiUsageReduced.toFixed(0)}%`,
       icon: Bot,
       change: "-3.1%",
       tooltip:
-        "Reduction in AI token usage through caching, model downsizing, and prompt optimization",
+        "Reduction in AI token usage through prompt compression, pruning, and optimization",
       color: "text-amber-500",
       bg: "bg-amber-500/10",
     },
