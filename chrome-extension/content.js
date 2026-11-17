@@ -48,12 +48,26 @@ if (window.location.hostname.includes("chatgpt.com")) {
   const setChatGPTText = (text) => {
     const el = getChatGPTElement();
     if (!el) return;
-    if ("value" in el) {
+    el.focus();
+    if ("value" in el && typeof el.value === "string") {
       el.value = text;
       el.dispatchEvent(new Event("input", { bubbles: true }));
-    } else {
-      el.innerText = text;
-      el.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+
+    // Modern ProseMirror / Lexical contenteditable inside ChatGPT
+    try {
+      document.execCommand("selectAll", false, null);
+      const success = document.execCommand("insertText", false, text);
+      if (!success) throw new Error("execCommand insertText returned false");
+    } catch (e) {
+      el.innerHTML = "";
+      const p = document.createElement("p");
+      p.textContent = text;
+      el.appendChild(p);
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
     }
   };
 
